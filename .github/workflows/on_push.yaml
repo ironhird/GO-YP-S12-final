@@ -1,0 +1,47 @@
+name: on_push
+on: push
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    container: golang:1.24
+    steps:
+      - name: Checkout
+      - uses: actions/checkout@v4
+
+      - name: go vet
+        run: go vet ./...      
+
+      - name: go test
+        run: GOOS=linux GOARCH=amd64 go test
+        
+  deploy:
+    name: Отправить образ в хаб
+    runs-on: ubuntu-latest
+    needs: tests
+    if: startsWith(github.ref, 'refs/tags')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: setup-buildx-action
+        uses: docker/setup-buildx-action@v3
+
+      - name: login-action
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+
+      - name: Извлечь metadata (tags, labels) для Docker
+        id: meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ironhird/GO-YP-S12-final
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
